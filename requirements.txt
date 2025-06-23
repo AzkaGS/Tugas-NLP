@@ -1,8 +1,10 @@
-numpy
-pandas
-seaborn
-matplotlib
-scikit-learn
-nltk
 streamlit
-joblib
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+wordcloud
+nltk
+imblearn
+plotly
