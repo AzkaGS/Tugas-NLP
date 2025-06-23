@@ -1,90 +1,105 @@
-# app.py
-
-# ===== INSTALASI DEPENDENSI =====
-# Pastikan Anda telah menginstal Streamlit dan dependensi lainnya.
-# !pip install streamlit joblib pandas scikit-learn nltk
-
 import streamlit as st
-import pandas as pd
 import joblib
-from nltk.tokenize import word_tokenize
-import re
-import string
+import pandas as pd
+import numpy as np
 
-# ===== MUAT MODEL DAN PREPROCESSOR =====
-# Memuat model terbaik, TF-IDF vectorizer, dan preprocessor
-best_model = joblib.load('best_model.pkl')
-tfidf_vectorizer = joblib.load('tfidf_vectorizer.pkl')
-text_preprocessor = joblib.load('text_preprocessor.pkl')
-label_encoder = joblib.load('label_encoder.pkl')
+# Load the saved model components
+try:
+    best_model = joblib.load('best_model.pkl')
+    tfidf_vectorizer = joblib.load('tfidf_vectorizer.pkl')
+    text_preprocessor = joblib.load('text_preprocessor.pkl')
+    label_encoder = joblib.load('label_encoder.pkl')
+    st.success("Model components loaded successfully!")
+except FileNotFoundError:
+    st.error("Error: Model components not found. Please ensure 'best_model.pkl', 'tfidf_vectorizer.pkl', 'text_preprocessor.pkl', and 'label_encoder.pkl' are in the same directory.")
+    st.stop() # Stop the app if essential files are missing
 
-# ===== FUNKSI UNTUK MEMPROSES TEKS =====
-def clean_text(text):
-    """
-    Membersihkan teks dari karakter yang tidak diinginkan seperti URL,
-    mention, hashtag, angka, dan tanda baca. Mengubah teks menjadi huruf kecil
-    dan menghapus spasi ekstra.
-    """
-    if pd.isna(text):  # Menangani nilai NaN (Not a Number)
-        return ""
+# --- Streamlit App Layout ---
+st.set_page_config(page_title="COVID-19 Hoax Classifier", layout="centered")
 
-    # Mengonversi teks ke huruf kecil
-    text = text.lower()
+st.title("🦠 COVID-19 Hoax Classifier")
 
-    # Menghapus URL
-    text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
+st.markdown("""
+    This application classifies headlines related to COVID-19 as either **Hoax** or **Real**.
+    Enter a headline in the text area below and click 'Predict' to see the classification.
+""")
 
-    # Menghapus mention (@username) dan hashtag (#tag)
-    text = re.sub(r'@\w+|#\w+', '', text)
+# Input text area for user
+user_input = st.text_area("Enter a headline here:", height=150, placeholder="e.g., Drinking bleach cures COVID-19")
 
-    # Menghapus angka
-    text = re.sub(r'\d+', '', text)
-
-    # Menghapus tanda baca
-    text = text.translate(str.maketrans('', '', string.punctuation))
-
-    # Menghapus spasi ekstra dan memangkas
-    text = re.sub(r'\s+', ' ', text).strip()
-
-    return text
-
-def preprocess_text(text):
-    """
-    Melakukan pra-pemrosesan pada teks.
-    """
-    text = clean_text(text)  # Langkah pembersihan
-    tokens = word_tokenize(text)  # Tokenisasi
-    return ' '.join(tokens)
-
-# ===== ANTARMUKA STREAMLIT =====
-st.title("Klasifikasi Hoaks COVID-19")
-st.write("Masukkan berita COVID-19 yang ingin Anda klasifikasikan:")
-
-# Input teks dari pengguna
-user_input = st.text_area("Berita COVID-19:", height=150)
-
-if st.button("Klasifikasikan"):
+if st.button("Predict"):
     if user_input:
-        # Pra-pemrosesan teks
-        processed_text = preprocess_text(user_input)
+        # 1. Preprocess the input text
+        with st.spinner("Processing text..."):
+            processed_input = text_preprocessor.preprocess(user_input)
 
-        # Mengubah teks menjadi matriks TF-IDF
-        text_tfidf = tfidf_vectorizer.transform([processed_text])
+        # 2. Transform the processed text using the loaded TF-IDF vectorizer
+        # We need to reshape for single sample prediction
+        input_tfidf = tfidf_vectorizer.transform([processed_input])
 
-        # Melakukan prediksi
-        prediction = best_model.predict(text_tfidf)
-        prediction_proba = best_model.predict_proba(text_tfidf)
+        # 3. Make prediction
+        prediction_label_encoded = best_model.predict(input_tfidf)[0]
+        prediction_text = label_encoder.inverse_transform([prediction_label_encoded])[0] # Convert back to 'hoax' or 'nyata'
 
-        # Mengonversi prediksi ke label asli
-        predicted_label = label_encoder.inverse_transform(prediction)[0]
-        confidence = prediction_proba[0][1] if predicted_label == 'nyata' else prediction_proba[0][0]
+        # 4. Get prediction probability (if available)
+        if hasattr(best_model, 'predict_proba'):
+            # Get probability for the predicted class
+            prediction_proba = best_model.predict_proba(input_tfidf)[0][prediction_label_encoded]
+            confidence = prediction_proba * 100
+        else:
+            confidence = None
+            st.warning("The selected model does not support probability prediction.")
 
-        # Menampilkan hasil
-        st.write(f"**Prediksi:** {predicted_label}")
-        st.write(f"**Tingkat Keyakinan:** {confidence:.2f}")
+        st.markdown("---")
+        st.subheader("Prediction Result:")
+
+        if prediction_text == 'hoaks':
+            st.error(f"This headline is classified as: **HOAX**")
+            if confidence is not None:
+                st.write(f"Confidence: **{confidence:.2f}%**")
+        else:
+            st.success(f"This headline is classified as: **REAL**")
+            if confidence is not None:
+                st.write(f"Confidence: **{confidence:.2f}%**")
+
+        st.markdown(f"**Processed Text:** `{processed_input}`")
+        
+        st.markdown("---")
+        st.info("Disclaimer: This model is for demonstrative purposes and should not be used as a sole source for verifying information. Always consult official health organizations for accurate information.")
+
     else:
-        st.warning("Silakan masukkan berita untuk diklasifikasikan.")
+        st.warning("Please enter some text to get a prediction.")
 
-# ===== MENJALANKAN APLIKASI =====
-if __name__ == "__main__":
-    st.write("Aplikasi ini menggunakan model klasifikasi hoaks COVID-19.")
+st.markdown("""
+    <style>
+    .reportview-container .main .block-container{
+        max-width: 800px;
+        padding-top: 2rem;
+        padding-right: 2rem;
+        padding-left: 2rem;
+        padding-bottom: 2rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.sidebar.header("About")
+st.sidebar.info(
+    "This application uses a pre-trained machine learning model to classify COVID-19 related "
+    "headlines. The model was trained using TF-IDF features and a **Stochastic Gradient Descent (SGD)** "
+    "classifier (or Logistic Regression/SVM, depending on which was best)."
+)
+
+st.sidebar.header("How it Works")
+st.sidebar.markdown("""
+- **Text Preprocessing:** The input text is cleaned (lowercase, remove URLs, punctuation, numbers) and then tokenized and stemmed.
+- **Feature Extraction (TF-IDF):** The preprocessed text is converted into numerical features using TF-IDF.
+- **Classification:** The trained model then predicts whether the headline is a 'Hoax' or 'Real'.
+""")
+
+st.sidebar.header("Model Details")
+if 'best_model' in locals():
+    st.sidebar.write(f"**Best Model Used:** {type(best_model).__name__}")
+    if hasattr(tfidf_vectorizer, 'max_features'):
+        st.sidebar.write(f"**TF-IDF Max Features:** {tfidf_vectorizer.max_features}")
+    if hasattr(tfidf_vectorizer, 'ngram_range'):
+        st.sidebar.write(f"**TF-IDF Ngram Range:** {tfidf_vectorizer.ngram_range}")
