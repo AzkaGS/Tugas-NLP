@@ -142,13 +142,7 @@ st.markdown("""
         color: #9d50bb;
         margin-bottom: 15px;
     }
-    .footer {
-        text-align: center;
-        margin-top: 50px;
-        padding: 20px;
-        color: #666;
-        font-size: 14px;
-    }
+    
     .stMarkdown h2 {
         font-size: 1.8rem;
         color: #333;
@@ -527,10 +521,4 @@ report = classification_report(y_test_global, y_pred_global, target_names=['Hoax
 report_df = pd.DataFrame(report).transpose()
 st.dataframe(report_df)
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# --- Footer ---
-st.markdown('<div class="footer">', unsafe_allow_html=True)
-st.markdown("<p>Aplikasi ini dikembangkan oleh Azka Mayla Fayza (A11.2022.14298) menggunakan dataset dari Kaggle</p>", unsafe_allow_html=True)
-st.markdown('<p><a href="https://www.kaggle.com/code/moathmohamed/covid-19-fake-news-detection-96/input" target="_blank">Link Dataset</a></p>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
